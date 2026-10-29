@@ -1,6 +1,6 @@
-import { generateDataset, openDatabase, type Database } from "@copiloto/data"
+import { generateDataset, lasagnaMenuItemId, openDatabase, type Database } from "@copiloto/data"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
-import { getSalesSummary, listMenuItems } from "../src/index.ts"
+import { analyzeReviews, classifyComment, getSalesSummary, listMenuItems } from "../src/index.ts"
 
 const dataset = generateDataset()
 const { tuesdayDrop } = dataset.plantedPatterns
@@ -64,5 +64,33 @@ describe("get_sales_summary", () => {
 
   it("rejects impossible dates", async () => {
     await expect(getSalesSummary(db, { start_date: "2026-02-31" })).rejects.toThrow("YYYY-MM-DD")
+  })
+})
+
+describe("analyze_reviews", () => {
+  it("surfaces cold food as the main lasagna complaint in the last four weeks", async () => {
+    const result = await analyzeReviews(db, { menu_item_id: lasagnaMenuItemId })
+
+    expect(result.menu_item?.name).toBe("Lasanha à bolonhesa")
+    expect(result.complaints[0]?.category).toBe("cold_food")
+    expect(result.avg_rating).toBeLessThan(3.5)
+  })
+
+  it("rejects unknown menu items", async () => {
+    await expect(analyzeReviews(db, { menu_item_id: 999 })).rejects.toThrow("list_menu_items")
+  })
+})
+
+describe("classifyComment", () => {
+  it.each([
+    ["A lasanha chegou fria, decepcionante.", ["cold_food"]],
+    ["Atrasou mais de uma hora.", ["late_delivery"]],
+    ["Faltou o refrigerante.", ["wrong_or_missing_item"]],
+    ["Molho derramou na sacola, embalagem ruim.", ["packaging"]],
+    ["Muito salgado.", ["taste"]],
+    ["Chegou quentinho e bem embalado.", []],
+    [null, []],
+  ])("classifies %j", (comment, categories) => {
+    expect(classifyComment(comment)).toEqual(categories)
   })
 })
