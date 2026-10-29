@@ -1,9 +1,9 @@
 import { generateDataset, lasagnaMenuItemId, openDatabase, type Database } from "@copiloto/data"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
-import { analyzeReviews, classifyComment, getSalesSummary, listMenuItems } from "../src/index.ts"
+import { analyzeReviews, classifyComment, detectAnomalies, getSalesSummary, listMenuItems } from "../src/index.ts"
 
 const dataset = generateDataset()
-const { tuesdayDrop } = dataset.plantedPatterns
+const { tuesdayDrop, kitchenIncident } = dataset.plantedPatterns
 let db: Database
 
 beforeAll(async () => {
@@ -92,5 +92,66 @@ describe("classifyComment", () => {
     [null, []],
   ])("classifies %j", (comment, categories) => {
     expect(classifyComment(comment)).toEqual(categories)
+  })
+})
+
+describe("detect_anomalies", () => {
+  it("finds every planted pattern in the last four weeks", async () => {
+    const { anomalies } = await detectAnomalies(db)
+
+    expect(anomalies).toContainEqual(expect.objectContaining({ type: "weekday_orders_shift", weekday: "tuesday" }))
+    expect(anomalies).toContainEqual(
+      expect.objectContaining({ type: "daily_cancellation_rate", date: kitchenIncident.date, severity: "high" }),
+    )
+    expect(anomalies).toContainEqual(expect.objectContaining({ type: "daily_prep_time", date: kitchenIncident.date }))
+    expect(anomalies).toContainEqual(
+      expect.objectContaining({
+        type: "menu_item_rating_drop",
+        menu_item: { id: lasagnaMenuItemId, name: "Lasanha à bolonhesa" },
+        top_complaint: expect.objectContaining({ category: "cold_food" }),
+      }),
+    )
+  })
+
+  it("does not flag weekdays or dishes that were not planted", async () => {
+    const { anomalies } = await detectAnomalies(db)
+
+    const shiftedWeekdays = anomalies.filter((anomaly) => anomaly.type === "weekday_orders_shift")
+    const droppedItems = anomalies.filter((anomaly) => anomaly.type === "menu_item_rating_drop")
+
+    expect(shiftedWeekdays.map((anomaly) => anomaly.weekday)).toEqual(["tuesday"])
+    expect(droppedItems.map((anomaly) => anomaly.menu_item?.id)).toEqual([lasagnaMenuItemId])
+  })
+
+  it("does not flag cancellation or prep spikes outside the incident day", async () => {
+    const { anomalies } = await detectAnomalies(db)
+    const kitchenSpikes = anomalies.filter(
+      (anomaly) => anomaly.type === "daily_cancellation_rate" || anomaly.type === "daily_prep_time",
+    )
+
+    expect(new Set(kitchenSpikes.map((anomaly) => anomaly.date))).toEqual(new Set([kitchenIncident.date]))
+  })
+
+  it.each([1, 7, 13, 21, 99])("finds only the planted patterns with seed %i", async (seed) => {
+    const seededDataset = generateDataset({ seed })
+    const seededDb = await openDatabase({ dataset: seededDataset })
+    const { anomalies } = await detectAnomalies(seededDb)
+    await seededDb.close()
+
+    const found = (type: string) => anomalies.filter((anomaly) => anomaly.type === type)
+    const incidentDate = seededDataset.plantedPatterns.kitchenIncident.date
+
+    expect(found("weekday_orders_shift").map((anomaly) => anomaly.weekday)).toEqual(["tuesday"])
+    expect(found("menu_item_rating_drop").map((anomaly) => anomaly.menu_item?.id)).toEqual([lasagnaMenuItemId])
+    expect(found("daily_cancellation_rate").map((anomaly) => anomaly.date)).toEqual([incidentDate])
+    expect(found("daily_prep_time").map((anomaly) => anomaly.date)).toEqual([incidentDate])
+    expect(found("daily_orders").every((anomaly) => anomaly.weekday === "tuesday")).toBe(true)
+  })
+
+  it("only checks daily spikes on short windows", async () => {
+    const result = await detectAnomalies(db, { start_date: "2026-10-20", end_date: "2026-10-25" })
+
+    expect(result.notes).toHaveLength(1)
+    expect(result.anomalies.every((anomaly) => anomaly.type.startsWith("daily_"))).toBe(true)
   })
 })
