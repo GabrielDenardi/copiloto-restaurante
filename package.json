@@ -12,6 +12,7 @@
   "scripts": {
     "seed": "npm run seed -w @copiloto/data",
     "mcp": "npm run start -w @copiloto/mcp-server",
+    "eval:detector": "npm run detector -w @copiloto/evals --",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },

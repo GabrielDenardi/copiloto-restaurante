@@ -1,0 +1,13 @@
+{
+  "name": "@copiloto/evals",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "detector": "tsx src/detector.ts"
+  },
+  "dependencies": {
+    "@copiloto/data": "*",
+    "@copiloto/mcp-server": "*"
+  }
+}
