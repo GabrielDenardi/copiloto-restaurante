@@ -1,0 +1,13 @@
+{
+  "name": "@copiloto/mcp-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@copiloto/data": "*",
+    "zod": "^4.6.7"
+  }
+}
