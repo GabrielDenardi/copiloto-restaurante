@@ -11,6 +11,7 @@
   },
   "scripts": {
     "seed": "npm run seed -w @copiloto/data",
+    "mcp": "npm run start -w @copiloto/mcp-server",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
