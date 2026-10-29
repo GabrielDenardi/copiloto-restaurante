@@ -1,6 +1,6 @@
 import { generateDataset, lasagnaMenuItemId, openDatabase, type Database } from "@copiloto/data"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
-import { analyzeReviews, classifyComment, detectAnomalies, getSalesSummary, listMenuItems } from "../src/index.ts"
+import { analyzeReviews, classifyComment, detectAnomalies, draftCampaign, getSalesSummary, listMenuItems } from "../src/index.ts"
 
 const dataset = generateDataset()
 const { tuesdayDrop, kitchenIncident } = dataset.plantedPatterns
@@ -153,5 +153,59 @@ describe("detect_anomalies", () => {
 
     expect(result.notes).toHaveLength(1)
     expect(result.anomalies.every((anomaly) => anomaly.type.startsWith("daily_"))).toBe(true)
+  })
+})
+
+describe("draft_campaign", () => {
+  it("stores the campaign as a draft pending approval", async () => {
+    const result = await draftCampaign(db, {
+      name: "Terça em dobro",
+      goal: "Recuperar os pedidos de terça no jantar",
+      discount_percent: 15,
+      weekdays: ["tuesday"],
+      start_hour: 18,
+      end_hour: 23,
+    })
+
+    expect(result.draft).toEqual(
+      expect.objectContaining({ status: "pending_approval", weekdays: ["tuesday"], hours: "18:00-23:00" }),
+    )
+    expect(result.context.delivered_orders_in_this_slot).toBeGreaterThan(0)
+
+    const { rows } = await db.query<{ total: number }>(
+      "select count(*)::int as total from campaign_drafts where status = 'pending_approval'",
+    )
+    expect(rows[0]?.total).toBeGreaterThanOrEqual(1)
+  })
+
+  it("restricts the slot to the chosen menu items", async () => {
+    const wholeMenu = await draftCampaign(db, { name: "Almoço", goal: "Teste", discount_percent: 10 })
+    const lasagnaOnly = await draftCampaign(db, {
+      name: "Lasanha",
+      goal: "Teste",
+      discount_percent: 10,
+      menu_item_ids: [lasagnaMenuItemId],
+    })
+
+    expect(lasagnaOnly.draft.menu_items).toEqual([{ id: lasagnaMenuItemId, name: "Lasanha à bolonhesa" }])
+    expect(lasagnaOnly.context.delivered_orders_in_this_slot).toBeLessThan(
+      wholeMenu.context.delivered_orders_in_this_slot,
+    )
+  })
+
+  it("refuses discounts above 30%", async () => {
+    await expect(draftCampaign(db, { name: "Queima", goal: "Vender mais", discount_percent: 50 })).rejects.toThrow()
+  })
+
+  it("refuses an hour range without both ends", async () => {
+    await expect(
+      draftCampaign(db, { name: "Noite", goal: "Vender mais", discount_percent: 10, start_hour: 18 }),
+    ).rejects.toThrow("both start_hour and end_hour")
+  })
+
+  it("refuses unknown menu items", async () => {
+    await expect(
+      draftCampaign(db, { name: "Fantasma", goal: "Teste", discount_percent: 10, menu_item_ids: [1, 999] }),
+    ).rejects.toThrow("999")
   })
 })
