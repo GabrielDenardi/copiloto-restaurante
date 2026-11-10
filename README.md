@@ -1,6 +1,7 @@
 # Copiloto Restaurante
 
 [![CI](https://github.com/GabrielDenardi/copiloto-restaurante/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/GabrielDenardi/copiloto-restaurante/actions/workflows/ci.yml)
+[![M8ven Verified](https://m8ven.ai/badge/mcp/gabrieldenardi-copiloto-restaurante-1h49kl?v=2e4530e7460c00a1e659ea35c24c4f4b)](https://m8ven.ai/mcp/gabrieldenardi-copiloto-restaurante-1h49kl?s=readme)
 
 Copiloto de IA para donos de restaurante em plataformas de delivery. O dono pergunta em português ("por que as vendas caíram na terça?", "do que estão reclamando?", "monta uma promoção pro jantar de segunda") e o agente responde com números tirados dos dados, nunca inventados.
 
